@@ -2,7 +2,7 @@ import numba
 from numba.extending import (box, unbox, typeof_impl, register_model, models,
                              NativeValue, lower_builtin, lower_cast, overload)
 from numba.targets.imputils import lower_constant, impl_ret_new_ref
-from numba import types, typing
+from numba import types, typing, targets
 from numba.typing.templates import (signature, AbstractTemplate, infer, infer_getattr,
                                     ConcreteTemplate, AttributeTemplate, bound_function, infer_global)
 from numba import cgutils
@@ -24,8 +24,41 @@ string_type = StringType()
 def _typeof_str(val, c):
     return string_type
 
-
 register_model(StringType)(models.OpaqueModel)
+
+#------------------------------------------------------------------
+
+class StringTypeDType(int):
+    pass
+
+string_type_dtype = StringTypeDType(0)
+
+class StringTypeType(types.Type):
+    def __init__(self):
+        super(StringTypeType, self).__init__(name='StringTypeType')
+        self.bitwidth = 8
+
+string_type_type = StringTypeType()
+
+@typeof_impl.register(StringTypeDType)
+def _typeof_type_str(val, c):
+    return string_type_type
+
+register_model(StringTypeType)(models.IntegerModel)
+
+@lower_constant(StringTypeType)
+def constant_StringTypeType(context, builder, ty, pyval):
+    return targets.numbers.constant_integer(context, builder, ty, pyval)
+
+@unbox(StringTypeType)
+def unbox_stringtypetype(typ, obj, c):
+    return targets.boxing.unbox_integer(typ, obj, c)
+
+@box(StringTypeType)
+def box_stringtypetype(typ, val, c):
+    return targets.boxing.box_integer(typ, val, c)
+
+#------------------------------------------------------------------
 
 # XXX: should be subtype of StringType?
 class CharType(types.Type):

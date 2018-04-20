@@ -33,25 +33,20 @@ string_array_type = StringArrayType()
 def typeof_string_array(val, c):
     return string_array_type
 
-# @type_callable(StringArray)
-# def type_string_array_call(context):
-#     def typer(offset, data):
-#         return string_array_type
-#     return typer
-
-
 @type_callable(StringArray)
-def type_string_array_call2(context):
+def type_string_array_call(context):
     def typer(string_list=None):
         return string_array_type
     return typer
 
+# ------------------------------------------------------------------------------
 
 class StringArrayPayloadType(types.Type):
     def __init__(self):
         super(StringArrayPayloadType, self).__init__(
             name='StringArrayPayloadType()')
 
+string_array_payload_type = StringArrayPayloadType()
 
 @register_model(StringArrayPayloadType)
 class StringArrayPayloadModel(models.StructModel):
@@ -67,7 +62,7 @@ class StringArrayPayloadModel(models.StructModel):
 @register_model(StringArrayType)
 class StringArrayModel(models.StructModel):
     def __init__(self, dmm, fe_type):
-        dtype = StringArrayPayloadType()
+        dtype = string_array_payload_type
         members = [
             ('meminfo', types.MemInfoPointer(dtype)),
         ]
@@ -130,7 +125,7 @@ class StrArrayAttribute(AttributeTemplate):
 
 @lower_getattr(string_array_type, 'size')
 def str_arr_size_impl(context, builder, typ, val):
-    dtype = StringArrayPayloadType()
+    dtype = string_array_payload_type
     inst_struct = context.make_helper(builder, typ, val)
     data_pointer = context.nrt.meminfo_data(builder, inst_struct.meminfo)
     # cgutils.printf(builder, "data [%p]\n", data_pointer)
@@ -184,7 +179,7 @@ ll.add_symbol('c_glob', hstr_ext.c_glob)
 
 def construct_string_array(context, builder):
     typ = string_array_type
-    dtype = StringArrayPayloadType()
+    dtype = string_array_payload_type
     alloc_type = context.get_data_type(dtype)
     alloc_size = context.get_abi_sizeof(alloc_type)
 
@@ -214,7 +209,7 @@ def construct_string_array(context, builder):
 @lower_builtin(StringArray, types.List)
 def impl_string_array_single(context, builder, sig, args):
     typ = sig.return_type
-    dtype = StringArrayPayloadType()
+    dtype = string_array_payload_type
     meminfo, data_pointer = construct_string_array(context, builder)
 
     string_array = cgutils.create_struct_proxy(dtype)(context, builder)
@@ -284,7 +279,7 @@ def impl_string_array_single(context, builder, sig, args):
 def box_str(typ, val, c):
     """
     """
-    dtype = StringArrayPayloadType()
+    dtype = string_array_payload_type
 
     inst_struct = c.context.make_helper(c.builder, typ, val)
     data_pointer = c.context.nrt.meminfo_data(c.builder, inst_struct.meminfo)
@@ -307,7 +302,7 @@ def box_str(typ, val, c):
 @lower_builtin('getitem', StringArrayType, types.Integer)
 def lower_string_arr_getitem(context, builder, sig, args):
     typ = sig.args[0]
-    dtype = StringArrayPayloadType()
+    dtype = string_array_payload_type
 
     inst_struct = context.make_helper(builder, typ, args[0])
     data_pointer = context.nrt.meminfo_data(builder, inst_struct.meminfo)
@@ -340,7 +335,8 @@ def unbox_str(typ, val, c):
     """
     Unbox a Pandas String Series. We just redirect to StringArray implementation.
     """
-    dtype = StringArrayPayloadType()
+    print("unbox_str", val, type(val))
+    dtype = string_array_payload_type
     payload = cgutils.create_struct_proxy(dtype)(c.context, c.builder)
 
     # function signature of string_array_from_sequence
@@ -386,7 +382,7 @@ class GlobInfer(AbstractTemplate):
 def lower_glob(context, builder, sig, args):
     path = args[0]
     typ = sig.return_type
-    dtype = StringArrayPayloadType()
+    dtype = string_array_payload_type
     meminfo, data_pointer = construct_string_array(context, builder)
     string_array = cgutils.create_struct_proxy(dtype)(context, builder)
 

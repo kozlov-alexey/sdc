@@ -4,26 +4,28 @@ import numba
 from numba import ir, ir_utils
 from numba import types
 from numba.typing import signature
-from numba.typing.templates import infer_global, AbstractTemplate
-from hpat.str_ext import StringType, string_type
-from hpat.str_arr_ext import StringArray, StringArrayType, string_array_type
+from numba.typing.templates import infer_global, AbstractTemplate, infer_getattr, bound_function, AttributeTemplate
+from hpat.str_ext import StringType, string_type, StringTypeType, string_type_type
+import hpat.str_ext
+from hpat.str_arr_ext import StringArray, StringArrayType, string_array_type, string_array_payload_type, unbox_str
 
 from numba.targets.imputils import lower_builtin, impl_ret_untracked, impl_ret_borrowed
 import numpy as np
 from hpat.pd_timestamp_ext import timestamp_series_type
+import pandas
 
-# from numba.typing.templates import infer_getattr, AttributeTemplate, bound_function
-# from numba import types
-#
-# @infer_getattr
-# class PdAttribute(AttributeTemplate):
-#     key = types.Array
-#
-#     @bound_function("array.rolling")
-#     def resolve_rolling(self, ary, args, kws):
-#         #assert not kws
-#         #assert not args
-#         return signature(ary.copy(layout='C'), types.intp)
+@infer_getattr
+class PdAttribute(AttributeTemplate):
+    key = pandas
+#    key = pandas.core.indexes.datetimes.
+
+#    @bound_function("DatetimeIndex")
+    @bound_function("pandas.core.indexes.datetimes.DatetimeIndex")
+    def resolve_DatetimeIndex(self, ary, args, kws):
+        print("resolve_DatetimeIndex", ary, args, kws)
+        #assert not kws
+        #assert not args
+        return signature(timestamp_series_type, string_array_type)
 
 
 def count(A):  # pragma: no cover
@@ -266,12 +268,24 @@ class PandasDataFrameType(types.Type):
         super(PandasDataFrameType, self).__init__(
             name='PandasDataFrameType({}, {})'.format(col_names, col_types))
 
-
 @typeof_impl.register(pd.DataFrame)
 def typeof_pd_dataframe(val, c):
     col_names = val.columns.tolist()
-    # TODO: support other types like string and timestamp
-    col_types = [numpy_support.from_dtype(t) for t in val.dtypes.tolist()]
+    list_dtypes = val.dtypes.tolist()
+    col_types = []
+
+    for i in range(len(list_dtypes)):
+        t = list_dtypes[i]
+        if t == object:
+            ot = type(val[col_names[i]][0])
+            if ot == str:
+                col_types.append(str)
+            else:
+                raise ValueError("Only string object arrays supported.")
+        else:
+            col_types.append(numpy_support.from_dtype(t))
+
+    # TODO: support other types like timestamp
     return PandasDataFrameType(col_names, col_types)
 
 register_model(PandasDataFrameType)(models.OpaqueModel)
@@ -293,8 +307,11 @@ class UnBoxDfCol(AbstractTemplate):
         assert not kws
         assert len(args) == 3
         df_typ, col_name_typ, dtype_typ = args[0], args[1], args[2]
-        # FIXME: last arg should be types.DType?
-        return signature(types.Array(dtype_typ.dtype, 1, 'C'), *args)
+        if dtype_typ == hpat.str_ext.string_type_type:
+            return signature(string_array_type, *args)
+        else:
+            # FIXME: last arg should be types.DType?
+            return signature(types.Array(dtype_typ.dtype, 1, 'C'), *args)
 
 from numba.targets.boxing import unbox_array
 
@@ -304,11 +321,22 @@ def lower_unbox_df_column(context, builder, sig, args):
     pyapi = context.get_python_api(builder)
     c = numba.pythonapi._UnboxContext(context, builder, pyapi)
     # TODO: refcount?
-    arr_obj = c.pyapi.object_getattr_string(args[0], "values")
-    dtype = sig.args[2].dtype
-    # TODO: error handling like Numba callwrappers.py
-    native_val = unbox_array(types.Array(dtype=dtype, ndim=1, layout='C'), arr_obj, c)
-    return native_val.value
+    type_arg = sig.args[2]
+
+    fnty = lir.FunctionType(lir.IntType(8).as_pointer(), [lir.IntType(8).as_pointer()])
+    fn = c.builder.module.get_or_insert_function(fnty, name="get_c_str")
+    c_str = c.builder.call(fn, [args[1]])
+
+    if type_arg == string_type_type:
+        str_series = c.pyapi.object_getattr_cstr(args[0], c_str)
+        native_val = unbox_str(string_array_type, str_series, c)
+        return native_val.value
+    else:
+        arr_obj = c.pyapi.object_getattr_cstr(args[0], c_str)
+        dtype = type_arg.dtype
+        # TODO: error handling like Numba callwrappers.py
+        native_val = unbox_array(types.Array(dtype=dtype, ndim=1, layout='C'), arr_obj, c)
+        return native_val.value
 
 from numba.extending import overload
 

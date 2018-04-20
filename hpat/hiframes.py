@@ -187,12 +187,20 @@ class HiFrames(object):
                 for i, col in enumerate(df_typ.col_names):
                     col_dtype = df_typ.col_types[i]  # FIXME: fix bool_
                     func_text = "def f(_df):\n"
-                    func_text += "  _col_input_{} = hpat.hiframes_api.unbox_df_column(_df, '{}', np.{})\n".format(col, col, col_dtype)
+                    #if col_dtype == hpat.str_ext.string_type:
+                    if col_dtype == str:
+                        #func_text += "  _col_input_{} = hpat.hiframes_api.unbox_df_column(_df, '{}', str)\n".format(col, col)
+                        func_text += "  _col_input_{} = hpat.hiframes_api.unbox_df_column(_df, '{}', hpat.str_ext.string_type_dtype)\n".format(col, col)
+                    else:
+                        func_text += "  _col_input_{} = hpat.hiframes_api.unbox_df_column(_df, '{}', np.{})\n".format(col, col, col_dtype)
                     loc_vars = {}
                     exec(func_text, {}, loc_vars)
                     f = loc_vars['f']
+                    print("Before compile_to_numba_ir", func_text)
                     f_block = compile_to_numba_ir(f,
                                 {'hpat': hpat, 'np': np}).blocks.popitem()[1]
+                    print("After compile_to_numba_ir")
+                    f_block.dump()
                     replace_arg_nodes(f_block, [df_var])
                     nodes += f_block.body[:-3]
                     df_items[col] = nodes[-1].target
