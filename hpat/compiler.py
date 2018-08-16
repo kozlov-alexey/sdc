@@ -14,6 +14,8 @@ from hpat import config
 if config._has_h5py:
     from hpat import pio
 
+last_ir = None
+
 # this is for previous version of pipeline manipulation (numba hpat_req <0.38)
 # def stage_io_pass(pipeline):
 #     """
@@ -195,7 +197,7 @@ class HPATPipeline(numba.compiler.BasePipeline):
     def stage_repeat_inline_closure(self):
         assert self.func_ir
         inline_pass = InlineClosureCallPass(
-            self.func_ir, self.flags.auto_parallel)
+            self.func_ir, self.flags.auto_parallel, self.parfor_diagnostics.replaced_fns)
         inline_pass.run()
         post_proc = postproc.PostProcessor(self.func_ir)
         post_proc.run()
@@ -210,6 +212,8 @@ class HPATPipeline(numba.compiler.BasePipeline):
         dist_pass = DistributedPass(self.func_ir, self.typingctx, self.targetctx,
                                     self.type_annotation.typemap, self.type_annotation.calltypes)
         dist_pass.run()
+        global last_ir
+        last_ir = self.func_ir
 
 
     def stage_df_typed_pass(self):

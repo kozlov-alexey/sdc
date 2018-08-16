@@ -29,6 +29,7 @@ def main():
     iterations = args.iterations
 
     w = logistic_regression(iterations)
+    logistic_regression.distribution_report(level=3)
 
 if __name__ == '__main__':
     main()

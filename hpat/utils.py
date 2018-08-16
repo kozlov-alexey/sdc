@@ -11,6 +11,8 @@ import collections
 import numpy as np
 from hpat.str_ext import string_type
 from hpat.str_arr_ext import string_array_type, num_total_chars, pre_alloc_string_array
+import linecache
+import os
 
 # silence Numba error messages for now
 # TODO: customize through @hpat.jit
@@ -178,17 +180,83 @@ def print_dist(d):
     if d == Distribution.TwoD:
         return "2D_Block"
 
+def find_min_max_loc(func_ir):
+    cur_min = func_ir.loc.line
+    cur_max = func_ir.loc.line
+    var_dict = {}
+    for label, block in func_ir.blocks.items():
+        for stmt in block.body:
+            cur_line = stmt.loc.line
+            cur_max = max(cur_max, cur_line)
+            stmt_vars = set([x.name for x in stmt.list_vars()])
+            print("stmt", cur_line, stmt, stmt_vars)
+            if cur_line in var_dict:
+                var_dict[cur_line] = var_dict[cur_line].union(stmt_vars)
+            else:
+                var_dict[cur_line] = stmt_vars
+    return cur_min, cur_max, var_dict
+
+def distribution_report_from_analysis(dist_analysis, fccres=None):
+    print("\nParfor distributions:")
+    for p, dist in dist_analysis.parfor_dists.items():
+        print("   {0:<20} {1}".format(p, print_dist(dist)))
+
+    if fccres == None:
+        print("Array distributions:")
+        for arr, dist in dist_analysis.array_dists.items():
+            print("   {0:20} {1}".format(arr, print_dist(dist)))
+    else:
+        func_ir, cres = fccres
+        filename = func_ir.loc.filename
+        try:
+            # Try to get a relative path
+            # ipython/jupyter input just returns as filename
+            path = os.path.relpath(filename)
+        except ValueError:
+            # Fallback to absolute path if error occurred in getting the
+            # relative path.
+            # This may happen on windows if the drive is different
+            path = os.path.abspath(filename)
+
+        lines = linecache.getlines(path)
+        if lines:
+            min_loc, max_loc, var_dict = find_min_max_loc(func_ir)
+            flines = lines[min_loc:max_loc+1]
+            src_width = max([len(x) for x in flines])
+
+            width = src_width
+            newlines = []
+            newlines.append('\n')
+            newlines.append('HPAT distribution report')
+            newlines.append(width * '-' + '| HPAT distributions')
+            fmt = '{0:{1}}| {2}'
+            for fno, line in enumerate(flines):
+                no = fno + min_loc + 1
+                hpat_line_report = ''
+                if no in var_dict:
+                    line_vars = var_dict[no]
+                    for lv in line_vars:
+                        if lv in dist_analysis.array_dists:
+                            hpat_line_report += lv + "(" + print_dist(dist_analysis.array_dists[lv]) + ") "
+
+                stripped = line.strip('\n')
+                srclen = len(stripped)
+                if hpat_line_report != '':
+                    l = fmt.format(width * '-', width, hpat_line_report)
+                else:
+                    l = fmt.format(width * ' ', width, hpat_line_report)
+                newlines.append(stripped + l[srclen:])
+            print('\n'.join(newlines))
+        else:
+            print("No source available")
+
+
 
 def distribution_report():
     import hpat.distributed
     if hpat.distributed.dist_analysis is None:
         return
-    print("Array distributions:")
-    for arr, dist in hpat.distributed.dist_analysis.array_dists.items():
-        print("   {0:20} {1}".format(arr, print_dist(dist)))
-    print("\nParfor distributions:")
-    for p, dist in hpat.distributed.dist_analysis.parfor_dists.items():
-        print("   {0:<20} {1}".format(p, print_dist(dist)))
+    distribution_report_from_analysis(hpat.distributed.dist_analysis)
 
 
 def is_whole_slice(typemap, func_ir, var, accept_stride=False):

@@ -42,7 +42,7 @@ fir_text = None
 
 
 class DistributedPass(object):
-    """analyze program and transfrom to distributed"""
+    """analyze program and transform to distributed"""
 
     def __init__(self, func_ir, typingctx, targetctx, typemap, calltypes):
         self.func_ir = func_ir
