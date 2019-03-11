@@ -40,6 +40,27 @@ def jit(signature_or_function=None, **options):
                            'fusion':        True,
                            }
 
+    if hpat.isnotebook():
+        print("isnotebook mode")
+        import ipyparallel as ipp
+#        c = ipp.Client('/home/taanders/.ipython/profile_default/security/ipcontroller-client.json', profile='mpi')
+        c = ipp.Client('/home/taanders/.ipython/profile_mpi/security/ipcontroller-client.json', profile='mpi')
+#        c = ipp.Client(profile='mpi')
+        dview = c[:]
+        if False:
+            asres = dview.apply_sync(numba.jit, signature_or_function, pipeline_class=hpat.compiler.HPATPipeline, **options)
+            print("asres", asres, type(asres))
+            eres = dview.execute('1', block=True)
+#            eres = c[0].execute('f2(1)', block=True)
+            print("eres", eres, type(eres))
+        else:
+            @dview.remote(block=True)
+            def numba_invoke():
+                def f1():
+                    return 1
+                f1j = numba.jit(f1j, **options)
+                return f1j()
+
     # this is for previous version of pipeline manipulation (numba hpat_req <0.38)
     # from .compiler import add_hpat_stages
     # return numba.jit(signature_or_function, user_pipeline_funcs=[add_hpat_stages], **options)
