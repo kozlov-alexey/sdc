@@ -1,0 +1,122 @@
+diff --git a/hpat/tests/test_series.py b/hpat/tests/test_series.py
+index 69145b21..cadc2fbb 100644
+--- a/hpat/tests/test_series.py
++++ b/hpat/tests/test_series.py
+@@ -92,7 +92,7 @@ class TestSeries(unittest.TestCase):
+         np.testing.assert_array_equal(hpat_func(), test_impl())
+
+     def test_create_series_index1(self):
+-        # create and box an indexed Series
++        '''Verifies Series creation with string index as positional argument'''
+         def test_impl():
+             A = pd.Series([1, 2, 3], ['A', 'C', 'B'])
+             return A
+@@ -101,6 +101,7 @@ class TestSeries(unittest.TestCase):
+         pd.testing.assert_series_equal(hpat_func(), test_impl())
+
+     def test_create_series_index2(self):
++        '''Verifies Series creation with string index as keyword argument'''
+         def test_impl():
+             A = pd.Series([1, 2, 3], index=['A', 'C', 'B'])
+             return A
+@@ -109,6 +110,7 @@ class TestSeries(unittest.TestCase):
+         pd.testing.assert_series_equal(hpat_func(), test_impl())
+
+     def test_create_series_index3(self):
++        '''Verifies Series creation with string index as keyword argument and name as literal'''
+         def test_impl():
+             A = pd.Series([1, 2, 3], index=['A', 'C', 'B'], name='A')
+             return A
+@@ -117,6 +119,7 @@ class TestSeries(unittest.TestCase):
+         pd.testing.assert_series_equal(hpat_func(), test_impl())
+
+     def test_create_series_index4(self):
++        '''Verifies Series creation with string index as keyword argument and non-literal name'''
+         def test_impl(name):
+             A = pd.Series([1, 2, 3], index=['A', 'C', 'B'], name=name)
+             return A
+@@ -178,7 +181,8 @@ class TestSeries(unittest.TestCase):
+         df = pd.DataFrame({'A': ['a', 'b', 'c']})
+         self.assertEqual(hpat_func(df.A), test_impl(df.A))
+
+-    def test_pass_series_index1(self):
++    def test_pass_series_str_index(self):
++        '''Verifies boxing and unboxing of a Series with string index'''
+         def test_impl(A):
+             return A
+         hpat_func = hpat.jit(test_impl)
+@@ -186,6 +190,24 @@ class TestSeries(unittest.TestCase):
+         S = pd.Series([3, 5, 6], ['a', 'b', 'c'], name='A')
+         pd.testing.assert_series_equal(hpat_func(S), test_impl(S))
+
++    def test_pass_series_int_index(self):
++        '''Verifies boxing and unboxing of a Series with integer index'''
++        def test_impl(A):
++            return A
++        hpat_func = hpat.jit(test_impl)
++
++        S = pd.Series([3, 5, 6], [1, 2, 3], name='A')
++        pd.testing.assert_series_equal(hpat_func(S), test_impl(S))
++
++    def test_pass_series_default_index(self):
++        '''Verifies boxing and unboxing of a Series with default index'''
++        def test_impl(A):
++            return A
++        hpat_func = hpat.jit(test_impl)
++
++        S = pd.Series([3, 5, 6], name='A')
++        pd.testing.assert_series_equal(hpat_func(S), test_impl(S))
++
+     def test_series_size(self):
+         def test_impl(S):
+             return S.size
+@@ -1834,6 +1829,7 @@ class TestSeries(unittest.TestCase):
+         pd.testing.assert_series_equal(hpat_func(S), test_impl(S))
+
+     def test_series_index1(self):
++        '''Verifies Series index created from a list of strings'''
+         def test_impl():
+             A = pd.Series([1, 2, 3], index=['A', 'C', 'B'])
+             return A.index
+@@ -1842,6 +1838,7 @@ class TestSeries(unittest.TestCase):
+         np.testing.assert_array_equal(hpat_func(), test_impl())
+
+     def test_series_index2(self):
++        '''Verifies Series index created from a list of integers'''
+         def test_impl():
+             A = pd.Series([1, 2, 3], index=[0, 1, 2])
+             return A.index
+@@ -1849,8 +1846,8 @@ class TestSeries(unittest.TestCase):
+         hpat_func = hpat.jit(test_impl)
+         np.testing.assert_array_equal(hpat_func(), test_impl())
+
+-    @unittest.skip("Enable after fixing distributed for get_series_index")
+     def test_series_index3(self):
++        '''Verifies Series index created by default'''
+         def test_impl():
+             A = pd.Series([1, 2, 3])
+             return A.index
+@@ -1891,6 +1888,7 @@ class TestSeries(unittest.TestCase):
+         result = cfunc()
+         pd.testing.assert_series_equal(ref_result, result)
+
++    @unittest.skip('Unboxing of integer Series.index as pd.Index is not implemented yet')
+     def test_series_take_index_int_unboxing(self):
+         def pyfunc(series, indices):
+             return series.take(indices)
+@@ -1981,15 +1979,6 @@ class TestSeries(unittest.TestCase):
+         hpat_func = hpat.jit(test_impl)
+         np.testing.assert_array_equal(hpat_func(A), test_impl(A))
+
+-    @unittest.skip("Implement indexing by RangeIndex for Series")
+-    def test_series_default_index(self):
+-        def test_impl():
+-            A = pd.Series([3, 2, 1, 5, 4])
+-            return A.index
+-
+-        hpat_func = hpat.jit(test_impl)
+-        np.testing.assert_array_equal(hpat_func(), test_impl())
+-
+     @unittest.skip("Implement drop_duplicates for Series")
+     def test_series_drop_duplicates(self):
+         def test_impl():
