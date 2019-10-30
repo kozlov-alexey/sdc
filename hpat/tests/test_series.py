@@ -1250,6 +1250,10 @@ class TestSeries(unittest.TestCase):
         S1 = pd.Series(['aa', 'b', None, 'cccd', ''])
         S2 = S1.copy()
         pd.testing.assert_series_equal(hpat_func(S1), test_impl(S2))
+        # TODO: handle string array reflection
+        # hpat_func(S1)
+        # test_impl(S2)
+        # np.testing.assert_array_equal(S1, S2)
 
     @unittest.skip('TODO (both): support StringArrayType reflection'
                    'TODO (new-style): investigate why Numba infers inplace type as bool (non-literal value)')
