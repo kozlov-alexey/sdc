@@ -1329,7 +1329,6 @@ class TestSeries(unittest.TestCase):
         S2 = S1.copy()
         pd.testing.assert_series_equal(hpat_func(S1), test_impl(S2))
 
-
     @unittest.skipIf(hpat.config.config_pipeline_hpat_default,
                      'No support of axis argument in old-style Series.dropna() impl')
     def test_series_dropna_axis1(self):
@@ -2044,7 +2043,7 @@ class TestSeries(unittest.TestCase):
         hpat_func = hpat.jit(test_impl)
 
         dtype_to_data = {'float': [[-2., 3., 9.1], [-2., 5.0]],
-                         'string': [['a', 'b', 'q'], ['d', 'e']]}
+                         'string': [['a', None, 'q', ''], ['d', '', 'e']]}
 
         for dtype, data_list in dtype_to_data.items():
             with self.subTest(series_dtype=dtype, concatenated_data=data_list):
@@ -2061,7 +2060,7 @@ class TestSeries(unittest.TestCase):
 
         dtype_to_data = {'float': [[-2., 3., 9.1], [-2., 5.0], [1.0]]}
         if not hpat.config.config_pipeline_hpat_default:
-            dtype_to_data['string'] = [['a', 'b', 'q'], ['d', 'e'], ['s']]
+            dtype_to_data['string'] = [['a', None, ''], ['d', None], ['']]
 
         for dtype, data_list in dtype_to_data.items():
             with self.subTest(series_dtype=dtype, concatenated_data=data_list):
