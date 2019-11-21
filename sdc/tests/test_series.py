@@ -89,9 +89,9 @@ test_global_input_data_unicode_kind4 = [
     'ascii',
     '12345',
     '1234567890',
-    '¡Y tú quién te crees?',
-    '🐍⚡',
-    '大处着眼，小处着手。',
+    'Â¡Y tÃº quiÃ©n te crees?',
+    'ðŸ��âš¡',
+    'å¤§å¤„ç�€çœ¼ï¼Œå°�å¤„ç�€æ‰‹ã€‚',
 ]
 
 test_global_input_data_unicode_kind1 = [
@@ -1001,7 +1001,9 @@ class TestSeries(unittest.TestCase):
 
     def test_series_iloc1(self):
         def test_impl(A):
-            return A.iloc[3]
+            res = A.iloc[3]
+            print("DEBUG:", A)
+            return res
         hpat_func = self.jit(test_impl)
 
         n = 11

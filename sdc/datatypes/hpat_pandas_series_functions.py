@@ -41,7 +41,7 @@ from numba import types
 import sdc
 import sdc.datatypes.common_functions as common_functions
 from sdc.datatypes.hpat_pandas_stringmethods_types import StringMethodsType
-from sdc.hiframes.pd_series_ext import SeriesType
+from sdc.hiframes.pd_series_ext import SeriesType, SeriesOperatorTypeIloc
 from sdc.str_arr_ext import (StringArrayType, cp_str_list_to_array, num_total_chars)
 from sdc.utils import to_array
 
@@ -117,6 +117,16 @@ def hpat_pandas_series_getitem(self, idx):
 
     _func_name = 'Operator getitem().'
 
+
+    print("DEBUG: getitem typing, self={}, type(self)={}".format(self, type(self)))
+    if isinstance(self, SeriesOperatorTypeIloc):
+        print("DEBUG: getitem typing - recognized SeriesOperatorTypeIloc instance")
+        def hpat_pandas_series_getitem_idx_integer_impl(self, idx):
+            result = self._data[idx]
+            return result
+
+        return hpat_pandas_series_getitem_idx_integer_impl
+
     if not isinstance(self, SeriesType):
         raise TypingError('{} The object must be a pandas.series. Given: {}'.format(_func_name, self))
 
@@ -158,9 +168,8 @@ def hpat_pandas_series_getitem(self, idx):
 
 @overload_attribute(SeriesType, 'at')
 @overload_attribute(SeriesType, 'iat')
-@overload_attribute(SeriesType, 'iloc')
 @overload_attribute(SeriesType, 'loc')
-def hpat_pandas_series_iloc(self):
+def hpat_pandas_series_at(self):
     """
     Pandas Series operators :attr:`pandas.Series.at`, :attr:`pandas.Series.iat`, :attr:`pandas.Series.iloc`, :attr:`pandas.Series.loc` implementation.
     .. only:: developer
@@ -188,6 +197,71 @@ def hpat_pandas_series_iloc(self):
 
     return hpat_pandas_series_iloc_impl
 
+from numba import cgutils
+from numba.typing import signature
+from numba.extending import intrinsic
+ 
+@intrinsic
+def init_series_iloc(typingctx, series):
+ 
+    def codegen(context, builder, signature, args):
+        series_val, = args
+        print("DEBUG: init_series_iloc : codegen: series_val=\n", series_val)
+#         # create series struct and store values
+#         series = cgutils.create_struct_proxy(
+#             signature.return_type)(context, builder)
+#         series.data = series_val.data
+#         series.index = series_val.index
+#         series.name = series_val.name
+# 
+#         # increase refcount of stored values
+#         if context.enable_nrt:
+#             context.nrt.incref(builder, signature.args[0], series)
+# 
+#         return series._getvalue()
+        return series_val
+ 
+    dtype = series.dtype
+    ty_data = series.data
+    ty_index = series.index
+    ty_name = series.is_named
+    print("DEBUG: dtype={}, data={}, index={}, name={}".format(dtype, ty_data, ty_index, ty_name))
+
+    print("DEBUG: dtype={}, data={}, index={}, name={}".format(dtype, ty_data, ty_index, ty_name))
+#     ret_typ = SeriesOperatorTypeIloc(dtype, ty_data, ty_index, None)
+    ret_typ = SeriesOperatorTypeIloc(dtype, ty_data, ty_index, ty_name)
+    sig = signature(ret_typ, series)
+    return sig, codegen
+
+@overload_attribute(SeriesType, 'iloc')
+def hpat_pandas_series_iloc(self):
+    """
+    Pandas Series operators :attr:`pandas.Series.at`, :attr:`pandas.Series.iat`, :attr:`pandas.Series.iloc`, :attr:`pandas.Series.loc` implementation.
+    .. only:: developer
+
+       Test: python -m sdc.runtests sdc.tests.test_series.TestSeries.test_series_iloc2
+
+    Parameters
+    ----------
+    series: :class:`pandas.Series`
+           input series
+
+    Returns
+    -------
+    :obj:`pandas.Series`
+         returns an object of :obj:`pandas.Series`
+    """
+
+    _func_name = 'Operator at/iat/iloc/loc().'
+
+    if not isinstance(self, SeriesType):
+        raise TypingError('{} The object must be a pandas.series. Given: {}'.format(_func_name, self))
+
+    def hpat_pandas_series_iloc_impl(self):
+#         return self
+        return init_series_iloc(self)
+
+    return hpat_pandas_series_iloc_impl
 
 @overload_method(SeriesType, 'nsmallest')
 def hpat_pandas_series_nsmallest(self, n=5, keep='first'):
