@@ -944,7 +944,7 @@ def _iterator_codegen(resty):
 
 
 @intrinsic
-def _conc_dict_items(typingctx, d):
+def _sdc_dict_items(typingctx, d):
     """Get dictionary iterator for .items()"""
     resty = SdcDictItemsIterableType(d)
     sig = resty(d)
@@ -953,7 +953,7 @@ def _conc_dict_items(typingctx, d):
 
 
 @intrinsic
-def _conc_dict_keys(typingctx, d):
+def _sdc_dict_keys(typingctx, d):
     """Get dictionary iterator for .keys()"""
     resty = SdcDictKeysIterableType(d)
     sig = resty(d)
@@ -962,7 +962,7 @@ def _conc_dict_keys(typingctx, d):
 
 
 @intrinsic
-def _conc_dict_values(typingctx, d):
+def _sdc_dict_values(typingctx, d):
     """Get dictionary iterator for .values()"""
     resty = SdcDictValuesIterableType(d)
     sig = resty(d)
@@ -976,7 +976,7 @@ def impl_items(d):
         return
 
     def impl(d):
-        it = _conc_dict_items(d)
+        it = _sdc_dict_items(d)
         return it
 
     return impl
@@ -988,7 +988,7 @@ def impl_keys(d):
         return
 
     def impl(d):
-        return _conc_dict_keys(d)
+        return _sdc_dict_keys(d)
 
     return impl
 
@@ -999,7 +999,7 @@ def impl_values(d):
         return
 
     def impl(d):
-        return _conc_dict_values(d)
+        return _sdc_dict_values(d)
 
     return impl
 
@@ -1054,7 +1054,7 @@ def impl_iterable_getiter(context, builder, sig, args):
 
 
 @lower_builtin('getiter', SdcDictType)
-def impl_conc_dict_getiter(context, builder, sig, args):
+def impl_sdc_dict_getiter(context, builder, sig, args):
     dict_type, = sig.args
     dict_val, = args
 

@@ -183,11 +183,11 @@ class SdcTypeRefModel(models.OpaqueModel):
         models.OpaqueModel.__init__(self, dmm, fe_type)
 
 
-@typeof_impl.register(type)
-def mynew_typeof_type(val, c):
-    """ This function is a workaround for """
-
-    if not issubclass(val, ConcurrentDict):
-        return numba_typeof_type(val, c)
-    else:
-        return SdcTypeRef(ConcurrentDictType)
+# @typeof_impl.register(type)
+# def mynew_typeof_type(val, c):
+#     """ This function is a workaround for """
+# 
+#     if not issubclass(val, ConcurrentDict):
+#         return numba_typeof_type(val, c)
+#     else:
+#         return SdcTypeRef(ConcurrentDictType)

@@ -45,6 +45,17 @@ using voidptr_refcnt = void (*)(void* key_ptr);
 using iter_state = std::pair<void*, void*>;
 
 
+struct Int64TrivialHash {
+public:
+    Int64TrivialHash() = default;
+    Int64TrivialHash(const Int64TrivialHash&) = default;
+    ~Int64TrivialHash() = default;
+    size_t operator()(const int64_t& val) const {
+        return (size_t)val;
+    }
+};
+
+
 class CustomVoidPtrHasher
 {
 private:
@@ -305,8 +316,8 @@ public:
 };
 
 
-template <typename Key, typename Val>
-using numeric_hashmap = GenericHashmapType<Key, Val>;
+template <typename Key, typename Val, typename Hash=std::hash<Key>, typename Equality=std::equal_to<Key>>
+using numeric_hashmap = GenericHashmapType<Key, Val, Hash, Equality>;
 
 template <typename Val>
 using generic_key_hashmap = GenericHashmapType<void*, Val, CustomVoidPtrHasher, CustomVoidPtrEquality>;
@@ -317,14 +328,16 @@ using generic_value_hashmap = GenericHashmapType<Key, void*, Hash, Equality>;
 using generic_hashmap = GenericHashmapType<void*, void*, CustomVoidPtrHasher, CustomVoidPtrEquality>;
 
 
+// FIXME: hasher should not be hardcoded of course! need some other way to remember what hasher/equality
+// was used, as this information cannot be derived from key_type and value_types!
 template<typename key_type, typename val_type>
-numeric_hashmap<key_type, val_type>*
+numeric_hashmap<key_type, val_type, Int64TrivialHash>*
 reinterpet_hashmap_ptr(void* p_hash_map,
                        typename std::enable_if<
                            !std::is_same<key_type, void*>::value &&
                            !std::is_same<val_type, void*>::value>::type* = 0)
 {
-    return reinterpret_cast<numeric_hashmap<key_type, val_type>*>(p_hash_map);
+    return reinterpret_cast<numeric_hashmap<key_type, val_type, Int64TrivialHash>*>(p_hash_map);
 }
 
 template<typename key_type, typename val_type>
@@ -389,11 +402,11 @@ void delete_generic_hashmap(void* p_hash_map)
     delete p_hash_map_spec;
 }
 
-template <typename key_type, typename value_type>
+template <typename key_type, typename value_type, typename Hash=std::hash<key_type>, typename Equality=std::equal_to<key_type>>
 void delete_numeric_hashmap(void* p_hash_map)
 {
 
-    auto p_hash_map_spec = (numeric_hashmap<key_type, value_type>*)p_hash_map;
+    auto p_hash_map_spec = (numeric_hashmap<key_type, value_type, Hash, Equality>*)p_hash_map;
     delete p_hash_map_spec;
 }
 
@@ -676,20 +689,15 @@ void hashmap_numeric_from_arrays(NRT_MemInfo** meminfo, void* nrt_table, key_typ
     auto nrt = (NRT_api_functions*)nrt_table;
     auto key_info = VoidPtrTypeInfo(nullptr, nullptr, sizeof(key_type));
     auto val_info = VoidPtrTypeInfo(nullptr, nullptr, sizeof(val_type));
-    auto p_hash_map = new numeric_hashmap<key_type, val_type>(key_info, val_info);
+    auto p_hash_map = new numeric_hashmap<key_type, val_type, Int64TrivialHash>(key_info, val_info);
     (*meminfo) = nrt->manage_memory((void*)p_hash_map, delete_numeric_hashmap<key_type, val_type>);
 
-    // FIXME: apply arena to make this react on changing NUMBA_NUM_THREADS
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, size),
-                 [=](const tbb::blocked_range<size_t>& r) {
-                     for(size_t i=r.begin(); i!=r.end(); ++i) {
-                         auto kv_pair = std::pair<const key_type, val_type>(keys[i], values[i]);
-                         p_hash_map->map.insert(
-                             std::move(kv_pair)
-                         );
-                     }
-                 }
-    );
+     for(size_t i=0; i!=size; ++i) {
+         auto kv_pair = std::pair<const key_type, val_type>(keys[i], values[i]);
+         p_hash_map->map.insert(
+             std::move(kv_pair)
+         );
+     }
 }
 
 

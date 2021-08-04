@@ -243,10 +243,13 @@ void hashmap_build_map_positions_int64_t(NRT_MemInfo** meminfo,
     auto nrt = (NRT_api_functions*)nrt_table;
 
     // FIXME: add ctor with fixed size of buckets!
+    // FIXME: do we need to use TrivialHash function (at least on MSVC we do need)
     auto key_info = VoidPtrTypeInfo(nullptr, nullptr, sizeof(int64_t));
     auto val_info = VoidPtrTypeInfo(nullptr, nullptr, sizeof(int64_t));
-    auto p_hash_map = new numeric_hashmap<int64_t, int64_t>(key_info, val_info);
-    (*meminfo) = nrt->manage_memory((void*)p_hash_map, delete_numeric_hashmap<int64_t, int64_t>);
+//    auto p_hash_map = new numeric_hashmap<int64_t, int64_t>(key_info, val_info);
+//    (*meminfo) = nrt->manage_memory((void*)p_hash_map, delete_numeric_hashmap<int64_t, int64_t>);
+     auto p_hash_map = new numeric_hashmap<int64_t, int64_t, Int64TrivialHash>(key_info, val_info, Int64TrivialHash(), std::equal_to<int64_t>());
+     (*meminfo) = nrt->manage_memory((void*)p_hash_map, delete_numeric_hashmap<int64_t, int64_t, Int64TrivialHash>);
 
     for (int i=0; i < size; ++i)
         p_hash_map->set(data[i], i);
