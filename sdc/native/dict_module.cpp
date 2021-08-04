@@ -25,7 +25,7 @@
 // *****************************************************************************
 
 #include <Python.h>
-#include "conc_hashmap.hpp"
+#include "hashmap.hpp"
 
 
 #define declare_hashmap_create(key_type, val_type, suffix) \
@@ -134,6 +134,30 @@ int8_t hashmap_iternext_##suffix(void* p_iter_state, key_type* ret_key, val_type
 } \
 
 
+#define declare_hashmap_build_map_positions(key_type, suffix) \
+void hashmap_build_map_positions_##suffix(NRT_MemInfo** meminfo, \
+                             void* nrt_table, \
+                             int8_t gen_key, \
+                             int8_t gen_val, \
+                             void* hash_func_ptr, \
+                             void* eq_func_ptr, \
+                             void* key_incref_func_ptr, \
+                             void* key_decref_func_ptr, \
+                             void* val_incref_func_ptr, \
+                             void* val_decref_func_ptr, \
+                             uint64_t key_size, \
+                             uint64_t val_size) \
+{ \
+    hashmap_build_map_positions<key_type>( \
+                meminfo, nrt_table, \
+                gen_key, gen_val, \
+                hash_func_ptr, eq_func_ptr, \
+                key_incref_func_ptr, key_decref_func_ptr, \
+                val_incref_func_ptr, val_decref_func_ptr, \
+                key_size, val_size); \
+} \
+
+
 #define declare_hashmap(key_type, val_type, suffix) \
 declare_hashmap_create(key_type, val_type, suffix); \
 declare_hashmap_size(key_type, val_type, suffix); \
@@ -210,11 +234,30 @@ declare_hashmap_create_from_data(int64_t, int64_t)
 declare_hashmap_create_from_data(int64_t, float)
 declare_hashmap_create_from_data(int64_t, double)
 
-PyMODINIT_FUNC PyInit_hconc_dict()
+
+void hashmap_build_map_positions_int64_t(NRT_MemInfo** meminfo,
+                             void* nrt_table,
+                             int64_t* data,
+                             uint64_t size)
+{
+    auto nrt = (NRT_api_functions*)nrt_table;
+
+    // FIXME: add ctor with fixed size of buckets!
+    auto key_info = VoidPtrTypeInfo(nullptr, nullptr, sizeof(int64_t));
+    auto val_info = VoidPtrTypeInfo(nullptr, nullptr, sizeof(int64_t));
+    auto p_hash_map = new numeric_hashmap<int64_t, int64_t>(key_info, val_info);
+    (*meminfo) = nrt->manage_memory((void*)p_hash_map, delete_numeric_hashmap<int64_t, int64_t>);
+
+    for (int i=0; i < size; ++i)
+        p_hash_map->set(data[i], i);
+}
+
+
+PyMODINIT_FUNC PyInit_hnative_dict()
 {
     static struct PyModuleDef moduledef = {
         PyModuleDef_HEAD_INIT,
-        "hconc_dict",
+        "hnative_dict",
         "No docs",
         -1,
         NULL,
@@ -256,6 +299,8 @@ PyMODINIT_FUNC PyInit_hconc_dict()
     REGISTER(hashmap_create_from_data_int32_t_to_double)
     REGISTER(hashmap_create_from_data_int64_t_to_float)
     REGISTER(hashmap_create_from_data_int64_t_to_double)
+
+    REGISTER(hashmap_build_map_positions_int64_t)
 
     utils::tbb_control::init();
 

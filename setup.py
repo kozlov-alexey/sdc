@@ -243,8 +243,30 @@ ext_conc_dict = Extension(name="sdc.hconc_dict",
                           language="c++"
                           )
 
+ext_native_dict = Extension(name="sdc.hnative_dict",
+                          sources=[
+                              "sdc/native/dict_module.cpp",
+                              "sdc/native/utils.cpp"],
+                          extra_compile_args=eca,
+                          extra_link_args=ela,
+                          libraries=['tbb'],
+                          include_dirs=[
+                              "sdc/native/",
+                              numba_include_path,
+                              os.path.join(tbb_root, 'include')],
+                          library_dirs=lid + [
+                              # for Linux
+                              os.path.join(tbb_root, 'lib', 'intel64', 'gcc4.4'),
+                              # for MacOS
+                              os.path.join(tbb_root, 'lib'),
+                              # for Windows
+                              os.path.join(tbb_root, 'lib', 'intel64', 'vc_mt'),
+                          ],
+                          language="c++"
+                          )
+
 _ext_mods = [ext_hdist, ext_chiframes, ext_set, ext_str, ext_dt, ext_io, ext_transport_seq, ext_sort,
-             ext_conc_dict]
+             ext_conc_dict, ext_native_dict]
 
 # Support of Parquet is disabled because HPAT pipeline does not work now
 # if _has_pyarrow:

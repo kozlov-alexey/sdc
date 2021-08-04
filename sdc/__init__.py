@@ -50,7 +50,8 @@ import sdc.datatypes.series.init
 import sdc.extensions.indexes.range_index_ext
 import sdc.extensions.indexes.int64_index_ext
 
-import sdc.extensions.sdc_hashmap_ext
+# import sdc.extensions.sdc_hashmap_ext
+import sdc.extensions.sdc_stl_hashmap_ext
 
 from ._version import get_versions
 
