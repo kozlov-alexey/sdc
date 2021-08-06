@@ -27,6 +27,7 @@
 #include <Python.h>
 #include "hashmap.hpp"
 #include <chrono>
+#include <mutex>
 
 class TrivialTBBHashCompare {
 public:
@@ -271,13 +272,23 @@ void hashmap_build_map_positions_int64_t(NRT_MemInfo** meminfo,
 uint8_t hashmap_native_build_and_fill_stl(int64_t* data, int64_t* searched, int64_t size, int64_t* res)
 {
     auto t1 = high_resolution_clock::now();
-    auto my_map_ptr = new std::unordered_map<int64_t, int64_t, Int64TrivialHash>(2*size, Int64TrivialHash());
-    // auto my_map_ptr = new tbb::concurrent_hash_map<int64_t, int64_t, TrivialTBBHashCompare>(2*size, TrivialTBBHashCompare());
+//    auto my_map_ptr = new std::unordered_map<int64_t, int64_t, Int64TrivialHash>(size, Int64TrivialHash());
+//    auto my_map_ptr = new std::unordered_map<int64_t, int64_t>(size);
+    auto my_map_ptr = new tbb::concurrent_hash_map<int64_t, int64_t, TrivialTBBHashCompare>(2*size, TrivialTBBHashCompare());
     auto& my_map = *my_map_ptr;
-    for (int i=0; i < size; ++i) {
-        // my_map.emplace(data[i], i);
-        my_map.emplace(i, i);
-    }
+//    for (int i=0; i < size; ++i) {
+//        my_map.emplace(data[i], i);
+//    }
+
+    utils::tbb_control::get_arena().execute([&]() {
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, size),
+                         [&](const tbb::blocked_range<size_t>& r) {
+                             for(size_t i=r.begin(); i!=r.end(); ++i) {
+                                 my_map.emplace(data[i], i);
+                             }
+                         }
+            );
+    });
 
     if (my_map.size() < size)
         return 0;
@@ -300,17 +311,17 @@ uint8_t hashmap_native_build_and_fill_stl(int64_t* data, int64_t* searched, int6
         tbb::parallel_for(tbb::blocked_range<size_t>(0, size),
                      [&](const tbb::blocked_range<size_t>& r) {
                          for(size_t i=r.begin(); i!=r.end(); ++i) {
-                             auto it = my_map.find(searched[i]);
-                             if (it != it_map_end)
-                                 res[i] = it->second;
-                             else
-                                 res[i] = -1;
-//                             auto it_pair = my_map.equal_range(searched[i]);
-//                             if (it_pair.first != my_map.end()) {
-//                                 res[i] = it_pair.first->second;
-//                             } else {
+//                             auto it = my_map.find(searched[i]);
+//                             if (it != it_map_end)
+//                                 res[i] = it->second;
+//                             else
 //                                 res[i] = -1;
-//                             }
+                             auto it_pair = my_map.equal_range(searched[i]);
+                             if (it_pair.first != my_map.end()) {
+                                 res[i] = it_pair.first->second;
+                             } else {
+                                 res[i] = -1;
+                             }
                          }
                      }
         );
