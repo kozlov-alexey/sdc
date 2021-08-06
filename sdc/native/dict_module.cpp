@@ -26,7 +26,19 @@
 
 #include <Python.h>
 #include "hashmap.hpp"
+#include <chrono>
 
+class TrivialTBBHashCompare {
+public:
+    static size_t hash(const int64_t& val) {
+        return (size_t)val;
+    }
+    static bool equal(const int64_t& k1, const int64_t& k2) {
+        return k1==k2;
+    }
+};
+
+using namespace std::chrono;
 
 #define declare_hashmap_create(key_type, val_type, suffix) \
 void hashmap_create_##suffix(NRT_MemInfo** meminfo, \
@@ -256,6 +268,70 @@ void hashmap_build_map_positions_int64_t(NRT_MemInfo** meminfo,
 }
 
 
+uint8_t hashmap_native_build_and_fill_stl(int64_t* data, int64_t* searched, int64_t size, int64_t* res)
+{
+    auto t1 = high_resolution_clock::now();
+    auto my_map_ptr = new std::unordered_map<int64_t, int64_t, Int64TrivialHash>(2*size, Int64TrivialHash());
+    // auto my_map_ptr = new tbb::concurrent_hash_map<int64_t, int64_t, TrivialTBBHashCompare>(2*size, TrivialTBBHashCompare());
+    auto& my_map = *my_map_ptr;
+    for (int i=0; i < size; ++i) {
+        // my_map.emplace(data[i], i);
+        my_map.emplace(i, i);
+    }
+
+    if (my_map.size() < size)
+        return 0;
+
+    auto t2 = high_resolution_clock::now();
+    duration<double, std::ratio<1, 1>> ms_double = t2 - t1;
+    auto ms_int = duration_cast<milliseconds>(t2 - t1);
+    std::cout << "native (STL) building map: " << ms_int.count() << " ms, (" << ms_double.count() << " sec)" << std::endl;
+
+//    for (int i=0; i < size; ++i) {
+//        auto it = my_map.find(searched[i]);
+//        if (it != my_map.end())
+//            res[i] = it->second;
+//        else
+//            res[i] = -1;
+//    }
+
+    auto it_map_end = my_map.end();
+    utils::tbb_control::get_arena().execute([&]() {
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, size),
+                     [&](const tbb::blocked_range<size_t>& r) {
+                         for(size_t i=r.begin(); i!=r.end(); ++i) {
+                             auto it = my_map.find(searched[i]);
+                             if (it != it_map_end)
+                                 res[i] = it->second;
+                             else
+                                 res[i] = -1;
+//                             auto it_pair = my_map.equal_range(searched[i]);
+//                             if (it_pair.first != my_map.end()) {
+//                                 res[i] = it_pair.first->second;
+//                             } else {
+//                                 res[i] = -1;
+//                             }
+                         }
+                     }
+        );
+    });
+
+    auto t3 = high_resolution_clock::now();
+    ms_double = t3 - t2;
+    ms_int = duration_cast<milliseconds>(t3 - t2);
+    std::cout << "native (STL) filling indexer: " << ms_int.count() << " ms, (" << ms_double.count() << " sec)" << std::endl;
+    ms_double = t3 - t1;
+    ms_int = duration_cast<milliseconds>(t3 - t1);
+    std::cout << "total time: " << ms_int.count() << " ms, (" << ms_double.count() << " sec)" << std::endl;
+
+    return 1;
+}
+
+void set_number_of_threads(uint64_t threads)
+{
+    utils::tbb_control::set_threads_num(threads);
+}
+
 PyMODINIT_FUNC PyInit_hnative_dict()
 {
     static struct PyModuleDef moduledef = {
@@ -304,7 +380,9 @@ PyMODINIT_FUNC PyInit_hnative_dict()
     REGISTER(hashmap_create_from_data_int64_t_to_double)
 
     REGISTER(hashmap_build_map_positions_int64_t)
+    REGISTER(hashmap_native_build_and_fill_stl)
 
+    REGISTER(set_number_of_threads)
     utils::tbb_control::init();
 
     return m;

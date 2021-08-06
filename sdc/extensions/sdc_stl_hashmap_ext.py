@@ -44,7 +44,7 @@ from numba.core.imputils import (impl_ret_new_ref, impl_ret_borrowed, iternext_i
 from numba.cpython.listobj import ListInstance
 from numba.core.typing.templates import (infer_global, AbstractTemplate, infer,
                                          signature, AttributeTemplate, infer_getattr, bound_function)
-from numba import prange
+from numba import prange, config
 
 from sdc.str_ext import string_type
 from sdc.str_arr_type import (StringArray, string_array_type, StringArrayType,
@@ -65,6 +65,20 @@ from itertools import product
 
 from numba.typed.dictobject import _cast
 
+## FIXME: need to place this binding into separate module?
+import ctypes as ct
+def bind(sym, sig):
+    # Returns ctypes binding to symbol sym with signature sig
+    addr = getattr(hnative_dict, sym)
+    return ct.cast(addr, sig)
+
+set_threads_count_sig = ct.CFUNCTYPE(None, ct.c_uint64)
+set_threads_count_sym = bind('set_number_of_threads', set_threads_count_sig)
+
+set_threads_count_sym(config.NUMBA_NUM_THREADS)
+
+
+ll.add_symbol('hashmap_native_build_and_fill_stl', hnative_dict.hashmap_native_build_and_fill_stl)
 
 def gen_func_suffixes():
     key_suffixes = ['int32_t', 'int64_t', 'voidptr']
@@ -1123,3 +1137,41 @@ def impl_iterator_iternext(context, builder, sig, args, result):
         else:
             # unreachable
             raise AssertionError('unknown type: {}'.format(iter_type.iterable))
+
+
+@intrinsic
+def fill_indexer_cpp_stl(typingctx, index_data_type, searched_type, res_type):
+
+    ret_type = types.bool_
+
+    def codegen(context, builder, sig, args):
+        data_val, searched_val, res_val = args
+
+        data_ctinfo = context.make_helper(builder, index_data_type, data_val)
+        searched_ctinfo = context.make_helper(builder, searched_type, searched_val)
+        res_ctinfo = context.make_helper(builder, res_type, res_val)
+        lir_key_type = context.get_value_type(types.int64)
+
+        size_val = context.compile_internal(
+            builder,
+            lambda arr: len(arr),
+            types.int64(searched_type),
+            [searched_val]
+        )
+
+        fnty = lir.FunctionType(lir.IntType(8),
+                                [lir_key_type.as_pointer(),
+                                 lir_key_type.as_pointer(),
+                                 lir.IntType(64),
+                                 lir_key_type.as_pointer(),])
+        fn_hashmap_fill_indexer = builder.module.get_or_insert_function(
+            fnty, name=f"hashmap_native_build_and_fill_stl")
+
+        res = builder.call(fn_hashmap_fill_indexer,
+                           [data_ctinfo.data,
+                            searched_ctinfo.data,
+                            size_val,
+                            res_ctinfo.data])
+        return context.cast(builder, res, types.uint8, types.bool_)
+
+    return ret_type(index_data_type, searched_type, res_type), codegen

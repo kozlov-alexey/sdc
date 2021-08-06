@@ -31,11 +31,15 @@ def test_typed_dict(index_data, searched):
     map_pos = Dict.empty(types.int64, types.int64)
     for i, label in enumerate(index_data):
         map_pos[label] = i
+    t2 = time.time()
     size = len(searched)
     indexer = np.empty(size, dtype=np.int64)
     for i in prange(size):
         indexer[i] = map_pos.get(searched[i], -1)
-    t_exec = time.time() - t1
+    t3 = time.time()
+    t_exec = t3 - t1
+    print("DEBUG: typed_dict: building map:", t2 - t1)
+    print("DEBUG: typed_dict: filling indexer:", t3 - t2)
     return t_exec, indexer
 
 # from sdc.extensions.sdc_indexing import sdc_indexes_map_positions
@@ -61,21 +65,22 @@ def test_typed_dict(index_data, searched):
 
 from sdc.extensions.sdc_indexing import sdc_indexes_map_positions
 from sdc.extensions.sdc_stl_hashmap_type import SdcDict
+from sdc.extensions.sdc_stl_hashmap_ext import fill_indexer_cpp_stl
 @njit(parallel=True)
 def test_stl_indexer(index_data, searched):
     a_index = pd.Int64Index(index_data)
     t1 = time.time()
-    # map_pos = SdcDict.empty(types.int64, types.int64)
-    # for i in range(len(index_data)):
-    #     map_pos[index_data[i]] = i
-#     range_values = np.arange(len(index_data))
-#     map_pos = SdcDict.from_arrays(index_data, range_values)
-    map_pos = sdc_indexes_map_positions(a_index)
-    size = len(searched)
-    indexer = np.empty(size, dtype=np.int64)
-    for i in prange(size):
-        indexer[i] = map_pos.get(searched[i], -1)
-#         indexer[i] = map_pos[searched[i]]
+    indexer = np.empty(len(searched), dtype=np.int64)
+    ok = fill_indexer_cpp_stl(a_index.values, searched, indexer)
+    t_exec = time.time() - t1
+    return t_exec, indexer
+
+
+@njit(parallel=True)
+def test_old_impl(index_data, searched):
+    a_index = pd.Int64Index(index_data)
+    t1 = time.time()
+    indexer = a_index.reindex(searched)
     t_exec = time.time() - t1
     return t_exec, indexer
 
@@ -99,12 +104,13 @@ tested_impl_1 = test_get_indexer
 tested_impl_2 = test_reindex
 tested_impl_3 = test_typed_dict
 tested_impl_4 = test_stl_indexer
+tested_impl_5 = test_old_impl
 data_gen = get_data
 
 
 # all_nthreads = (1, )
-all_nthreads = (8, )
-# all_nthreads = (1, 2, 4, 8)                     # laptop version
+# all_nthreads = (8, )
+all_nthreads = (1, 2, 4, 8)                     # laptop version
 # all_nthreads = (1, 2, 4, 8, 16, 28)       # Xeon version
 
 # def data_gen(n):
@@ -121,6 +127,7 @@ def launcher():
         'tested_2',
         'tested_3',
         'tested_4',
+        'tested_5',
     ])
     results = pd.DataFrame(
         {},
@@ -134,6 +141,7 @@ def launcher():
     tested_impl_2(*args)
     tested_impl_3(*args)
     tested_impl_4(*args)
+    tested_impl_5(*args)
 
     n = 10000000    # for numeric
 #     n = 500000    # for unicodes
@@ -146,10 +154,11 @@ def launcher():
   
         args = data_gen(n)      ## this would be much fair
         numba.set_num_threads(n_threads)
-        results['tested_1'][n_threads] = tested_impl_1(*args)[0]
-        results['tested_2'][n_threads] = tested_impl_2(*args)[0]
+#         results['tested_1'][n_threads] = tested_impl_1(*args)[0]
+#         results['tested_2'][n_threads] = tested_impl_2(*args)[0]
         results['tested_3'][n_threads] = tested_impl_3(*args)[0]
-        results['tested_4'][n_threads] = tested_impl_4(*args)[0]
+#         results['tested_4'][n_threads] = tested_impl_4(*args)[0]
+        results['tested_5'][n_threads] = tested_impl_5(*args)[0]
   
   
     print("Results:")
