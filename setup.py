@@ -109,10 +109,18 @@ tbb_root = os.getenv('TBBROOT')
 if not tbb_root:
     tbb_root = check_file_at_path(['include', 'tbb', 'tbb.h'])
 
+
+# add /DTBB_USE_PROFILING_TOOLS=1 for itt support in TBB
+if is_win:
+    eca = ['/std:c++11', "/Ox", "/DTBB_PREVIEW_WAITING_FOR_WORKERS=1", "/DSDC_DEBUG_NATIVE",  ]  # "/Zi", "/DEBUG:FULL", "/DTBB_USE_PROFILING_TOOLS"
+    ela = []  # '/DEBUG:FULL', 
+else:
+    eca = ['-std=c++11', "-O2", "-DTBB_PREVIEW_WAITING_FOR_WORKERS=1", "-DSDC_DEBUG_NATIVE", '-g', "-DTBB_USE_PROFILING_TOOLS"]
+    ela = []
+
 ind = [PREFIX_DIR + '/include', ]
 lid = [PREFIX_DIR + '/lib', ]
-eca = ['-std=c++11', "-O3", "/DTBB_PREVIEW_WAITING_FOR_WORKERS=1", "/DSDC_DEBUG_NATIVE"]  # '-g', '-O0']
-ela = ['-std=c++11', ]
+
 
 io_libs = []
 

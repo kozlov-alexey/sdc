@@ -296,7 +296,7 @@ uint8_t hashmap_native_build_and_fill_stl(int64_t* data, int64_t* searched, int6
     auto t2 = high_resolution_clock::now();
     duration<double, std::ratio<1, 1>> ms_double = t2 - t1;
     auto ms_int = duration_cast<milliseconds>(t2 - t1);
-    std::cout << "native (STL) building map: " << ms_int.count() << " ms, (" << ms_double.count() << " sec)" << std::endl;
+    std::cout << "native (TBB) building map: " << ms_int.count() << " ms, (" << ms_double.count() << " sec)" << std::endl;
 
 //    for (int i=0; i < size; ++i) {
 //        auto it = my_map.find(searched[i]);
@@ -330,7 +330,7 @@ uint8_t hashmap_native_build_and_fill_stl(int64_t* data, int64_t* searched, int6
     auto t3 = high_resolution_clock::now();
     ms_double = t3 - t2;
     ms_int = duration_cast<milliseconds>(t3 - t2);
-    std::cout << "native (STL) filling indexer: " << ms_int.count() << " ms, (" << ms_double.count() << " sec)" << std::endl;
+    std::cout << "native (TBB) filling indexer: " << ms_int.count() << " ms, (" << ms_double.count() << " sec)" << std::endl;
     ms_double = t3 - t1;
     ms_int = duration_cast<milliseconds>(t3 - t1);
     std::cout << "total time: " << ms_int.count() << " ms, (" << ms_double.count() << " sec)" << std::endl;
