@@ -86,9 +86,16 @@ def test_old_impl(index_data, searched):
 
 
 ### produces data for reindexing/reordering of unique labels
+# def get_data(n):
+#     index_values = np.arange(n, dtype='int64')
+#     reindex_by = np.copy(index_values)
+#     np.random.shuffle(reindex_by)
+#     return [index_values, reindex_by]
+
 def get_data(n):
     index_values = np.arange(n, dtype='int64')
     reindex_by = np.copy(index_values)
+    np.random.shuffle(index_values)
     np.random.shuffle(reindex_by)
     return [index_values, reindex_by]
 
@@ -148,6 +155,7 @@ def launcher():
 #     n = 1000000     # this can also fit for unicodes
 #     n = 100
 
+    '''
     # args = data_gen(n)        ## using the same series for all runs is not fair
                                 ## since pandas will compute and store index grouper during first run
     for n_threads in all_nthreads:
@@ -157,13 +165,17 @@ def launcher():
 #         results['tested_1'][n_threads] = tested_impl_1(*args)[0]
 #         results['tested_2'][n_threads] = tested_impl_2(*args)[0]
         results['tested_3'][n_threads] = tested_impl_3(*args)[0]
-#         results['tested_4'][n_threads] = tested_impl_4(*args)[0]
+        results['tested_4'][n_threads] = tested_impl_4(*args)[0]
         results['tested_5'][n_threads] = tested_impl_5(*args)[0]
   
   
     print("Results:")
     print(results)
-
+    '''
+    args = data_gen(n)
+    print("tested_3 time:", tested_impl_3(*args)[0])
+    print("tested_4 time:", tested_impl_4(*args)[0])
+    print("tested_5 time:", tested_impl_5(*args)[0])
 
 if __name__ == '__main__':
     launcher()
