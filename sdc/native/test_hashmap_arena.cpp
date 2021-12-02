@@ -52,8 +52,8 @@ int main()
 
     size_t res = 0;
     // std::vector<int> n_threads_vec = {1, 2, 4, 8, 16, 28, 56};
-    // std::vector<int> n_threads_vec = {8};
-    std::vector<int> n_threads_vec = {4};
+    std::vector<int> n_threads_vec = {8};
+//    std::vector<int> n_threads_vec = {4};
     // std::vector<int> n_threads_vec = {1};
     for (auto n_threads : n_threads_vec) {
         tbb::task_arena tbb_arena(n_threads);

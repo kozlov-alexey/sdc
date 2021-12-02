@@ -4,9 +4,23 @@
 #include <math.h>
 #include <random>
 
+
+//#ifdef _WIN32
+//#pragma warning(push)
+//#pragma warning(disable : 4003)
+//#endif
+//
+//#include "libcuckoo/cuckoohash_map.hh"
+//
+//#ifdef _WIN32
+//#pragma warning(pop)
+//#endif
+
+#define NOMINMAX
 #include "tbb/tbb.h"
 #include "tbb/task_arena.h"
 #include "libcuckoo/cuckoohash_map.hh"
+#undef NOMINMAX
 
 #ifndef CONFIGURE_NUM_THREADS
 #define CONFIGURE_NUM_THREADS 1
@@ -27,7 +41,7 @@ int main()
 
     std::vector<int64_t> data;
     data.reserve(PROBLEM_SIZE);
-    for (int i; i < PROBLEM_SIZE; i++)
+    for (int i=0; i < PROBLEM_SIZE; i++)
         data.push_back(i);
     std::shuffle(data.begin(), data.end(), gen);
 
