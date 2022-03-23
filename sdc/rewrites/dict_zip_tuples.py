@@ -1,5 +1,5 @@
 # *****************************************************************************
-# Copyright (c) 2020, Intel Corporation All rights reserved.
+# Copyright (c) 2019-2021, Intel Corporation All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -29,53 +29,50 @@ from numba.core.ir_utils import guard, get_definition
 from numba import errors
 from numba.core import ir
 
-from sdc.rewrites.ir_utils import find_operations
-
-import pandas as pd
+from sdc.rewrites.ir_utils import find_operations, import_function
+from sdc.functions.tuple_utils import sdc_tuple_zip
 
 
 @register_rewrite('before-inference')
-class RewriteReadCsv(Rewrite):
+class RewriteDictZip(Rewrite):
     """
-    Searches for calls to Pandas read_csv() and replace its arguments with tuples.
+    Searches for calls like dict(zip(arg1, arg2)) and replaces zip with sdc_zip.
     """
-
-    _read_csv_const_args = ('names', 'dtype', 'usecols', 'parse_dates')
 
     def match(self, func_ir, block, typemap, calltypes):
-        # TODO: check that vars are used only in read_csv
 
-        self.block = block
-        self.args = args = []
+        self._block = block
+        self._func_ir = func_ir
+        self._calls_to_rewrite = set()
 
-        # Find all assignments with a right-hand read_csv() call
+        # Find all assignments with a RHS expr being a call to dict, and where arg
+        # is a call to zip and store these ir.Expr for further modification
         for inst in find_operations(block=block, op_name='call'):
             expr = inst.value
             try:
                 callee = func_ir.infer_constant(expr.func)
             except errors.ConstantInferenceError:
                 continue
-            if callee is not pd.read_csv:
-                continue
-            # collect arguments with list, set and dict
-            # in order to replace with tuple
-            for key, var in expr.kws:
-                if key in self._read_csv_const_args:
-                    arg_def = guard(get_definition, func_ir, var)
-                    ops = ['build_list', 'build_set', 'build_map']
-                    if isinstance(arg_def, ir.Expr) and arg_def.op in ops:
-                        args.append(arg_def)
 
-        return len(args) > 0
+            if (callee is dict and len(expr.args) == 1):
+                dict_arg_expr = guard(get_definition, func_ir, expr.args[0])
+                if (getattr(dict_arg_expr, 'op', None) == 'call'):
+                    called_func = guard(get_definition, func_ir, dict_arg_expr.func)
+                    if (called_func.value is zip and len(dict_arg_expr.args) == 2):
+                        self._calls_to_rewrite.add(dict_arg_expr)
+
+        return len(self._calls_to_rewrite) > 0
 
     def apply(self):
         """
-        Replace list, set and dict expressions with tuple.
+        Replace call to zip in matched expressions with call to sdc_zip.
         """
-        block = self.block
-        for inst in block.body:
-            if isinstance(inst, ir.Assign) and inst.value in self.args:
-                if inst.value.op == 'build_map':
-                    inst.value.items = sum(map(list, inst.value.items), [])
-                inst.value.op = 'build_tuple'
-        return block
+        new_block = self._block.copy()
+        new_block.clear()
+        zip_spec_stmt = import_function(sdc_tuple_zip, new_block, self._func_ir)
+        for inst in self._block.body:
+            if isinstance(inst, ir.Assign) and inst.value in self._calls_to_rewrite:
+                expr = inst.value
+                expr.func = zip_spec_stmt.target  # injects the new function
+            new_block.append(inst)
+        return new_block
